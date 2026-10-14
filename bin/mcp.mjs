@@ -14,7 +14,9 @@
  *   mcp list-resources --server <name>
  *   mcp list-resource-templates --server <name>
  *   mcp read-resource --server <name> --uri <uri>
- *   mcp auth --server <name>            # interactive OAuth PKCE flow (opens URL for the user)
+ *   mcp auth --server <name> [--reset] [--print-url] [--callback "<url>"]
+ *     # OAuth PKCE: same-machine waits for local callback; --print-url prints
+ *     # the URL for a remote browser, --callback completes with the pasted redirect URL
  *
  * Registry entry:
  *   { "description", "transport": "streamable-http", "url", "headers"?: {...},
@@ -95,15 +97,25 @@ class FileOAuthStateStore {
   load() {
     return this.readAll().servers?.[this.serverName];
   }
-  async save(state) {
-    const all = this.readAll();
-    all.servers = all.servers || {};
-    all.servers[this.serverName] = state;
+  writeAll(all) {
     mkdirSync(CONFIG_DIR, { recursive: true });
     writeFileSync(TOKENS_PATH, JSON.stringify(all, null, 2) + "\n", { mode: 0o600 });
     try {
       chmodSync(TOKENS_PATH, 0o600);
     } catch {}
+  }
+  async save(state) {
+    const all = this.readAll();
+    all.servers = all.servers || {};
+    all.servers[this.serverName] = state;
+    this.writeAll(all);
+  }
+  clear() {
+    const all = this.readAll();
+    if (all.servers) {
+      delete all.servers[this.serverName];
+      this.writeAll(all);
+    }
   }
 }
 
@@ -283,10 +295,16 @@ function cmdListServers() {
 }
 
 /**
- * Interactive OAuth PKCE flow:
- * dynamic client registration -> print authorization URL -> local callback
- * server waits for the redirect -> code exchange -> tokens saved to
- * ~/.config/mcp/tokens.json (0600) via FileOAuthStateStore.
+ * OAuth PKCE flow.
+ *
+ *   mcp auth --server <name>                    # same-machine: prints URL, waits for local callback (5 min)
+ *   mcp auth --server <name> --print-url        # remote browser: prints URL and exits (state saved)
+ *   mcp auth --server <name> --callback "<url>" # complete with the redirect URL pasted from the browser
+ *   mcp auth --server <name> --reset            # clear stored state (forces re-registration)
+ *
+ * Each mode runs authorizeMcp directly exactly once, so the printed
+ * authorization URL always matches the stored PKCE verifier (no 401-triggered
+ * double flow). Tokens land in ~/.config/mcp/tokens.json (0600).
  */
 async function cmdAuth() {
   const server = getArg("--server", null);
@@ -305,20 +323,23 @@ async function cmdAuth() {
     McpOAuthAuthorizationRequiredError,
   } = await import("@earendil-works/pi-mcp/oauth");
 
-  const callback = await OAuthCallbackServer.listen({ timeoutMs: 5 * 60 * 1000 });
-  let authorizationUrl;
-  const mkProvider = () =>
+  const store = new FileOAuthStateStore(server);
+  if (process.argv.includes("--reset")) {
+    store.clear();
+  }
+
+  const CALLBACK_PORT = entry.oauth?.callbackPort || 8931;
+  const redirectUrl = `http://127.0.0.1:${CALLBACK_PORT}/callback`;
+  const mkProvider = (onRedirect) =>
     new McpOAuthProvider({
       serverUrl: expandEnv(entry.url),
-      redirectUrl: callback.redirectUrl,
+      redirectUrl,
       clientMetadata: {
         client_name: entry.oauth?.clientName || "muse-mcp",
         ...(entry.oauth?.scope ? { scope: entry.oauth.scope } : {}),
       },
-      store: new FileOAuthStateStore(server),
-      onRedirect: (url) => {
-        authorizationUrl = url.toString();
-      },
+      store,
+      onRedirect: onRedirect || (() => {}),
     });
 
   const tryConnect = async () => {
@@ -329,29 +350,83 @@ async function cmdAuth() {
     });
     try {
       const init = await client.connect(transport);
-      return { client, transport, init };
+      const tools = await client.listTools();
+      await client.close().catch(() => {});
+      return { init, tools };
     } catch (e) {
       await client.close().catch(() => {});
       throw e;
     }
   };
+  const needsAuth = (e) =>
+    e instanceof McpOAuthAuthorizationRequiredError || e?.name === "McpOAuthAuthorizationRequiredError";
+  const done = (extra) =>
+    console.log(JSON.stringify({ server, ok: true, ...extra, note: `tokens saved to ${TOKENS_PATH}` }));
 
-  try {
+  // Fast path: tokens already stored -> verify with a real connect (refreshes if needed).
+  if (store.load()?.tokens) {
     try {
-      const { client, transport, init } = await tryConnect();
-      await client.close().catch(() => {});
-      console.log(JSON.stringify({ server, ok: true, note: "already authorized", init: summarizeInit(init) }));
+      const { init, tools } = await tryConnect();
+      console.log(
+        JSON.stringify({ server, ok: true, note: "already authorized", init: summarizeInit(init), toolCount: tools.length }),
+      );
       return;
     } catch (e) {
-      const needsAuth =
-        e instanceof McpOAuthAuthorizationRequiredError || e?.name === "McpOAuthAuthorizationRequiredError";
-      if (!needsAuth) throw e;
+      if (!needsAuth(e)) throw e;
+      store.clear(); // stale grant -> start over
     }
+  }
 
-    if (!authorizationUrl) throw new Error("OAuth provider did not produce an authorization URL");
+  // Complete a --print-url round with the redirect URL pasted from the browser.
+  const cbArg = getArg("--callback", null);
+  if (cbArg) {
+    const u = new URL(cbArg);
+    const code = u.searchParams.get("code");
+    const stateParam = u.searchParams.get("state");
+    const iss = u.searchParams.get("iss") || undefined;
+    if (!code) throw new Error("no ?code= in the pasted URL");
+    const oauth = mkProvider();
+    const expectedState = await oauth.state().catch(() => null);
+    if (stateParam && expectedState && stateParam !== expectedState) {
+      throw new Error("state mismatch — run: mcp auth --server " + server + " --reset --print-url");
+    }
+    const result = await authorizeMcp(oauth, {
+      serverUrl: expandEnv(entry.url),
+      authorizationCode: code,
+      iss,
+    });
+    const { init, tools } = await tryConnect();
+    done({ result, init: summarizeInit(init), toolCount: tools.length });
+    return;
+  }
+
+  // Single direct authorizeMcp: exactly one startAuthorization, so the printed
+  // URL always matches the stored verifier.
+  let authorizationUrl;
+  const oauth = mkProvider((url) => {
+    authorizationUrl = url.toString();
+  });
+  const flowResult = await authorizeMcp(oauth, { serverUrl: expandEnv(entry.url) });
+  if (flowResult !== "REDIRECT" || !authorizationUrl) {
+    throw new Error(`unexpected OAuth flow result: ${flowResult}`);
+  }
+
+  if (process.argv.includes("--print-url")) {
+    console.log(
+      JSON.stringify({
+        server,
+        authorizationUrl,
+        next: `mcp auth --server ${server} --callback "<paste the full redirect URL here>"`,
+      }),
+    );
+    return;
+  }
+
+  // Same-machine interactive mode: wait for the local callback.
+  const callback = await OAuthCallbackServer.listen({ port: CALLBACK_PORT, timeoutMs: 5 * 60 * 1000 });
+  try {
     console.log(`\nOpen this URL in your browser to authorize "${server}":\n\n  ${authorizationUrl}\n`);
     console.log("Waiting for the callback (5 minutes)...");
-    const oauth = mkProvider();
     const state = await oauth.state();
     const { code, iss } = await callback.waitForCallback(state);
     const result = await authorizeMcp(oauth, {
@@ -359,25 +434,13 @@ async function cmdAuth() {
       authorizationCode: code,
       iss,
     });
-    console.log(`Authorization result: ${result}`);
-
-    // Verify the grant works end to end.
-    const { client, init } = await tryConnect();
-    const tools = await client.listTools();
-    await client.close().catch(() => {});
-    console.log(
-      JSON.stringify({
-        server,
-        ok: true,
-        init: summarizeInit(init),
-        toolCount: tools.length,
-        note: `tokens saved to ${TOKENS_PATH}`,
-      }),
-    );
+    const { init, tools } = await tryConnect();
+    done({ result, init: summarizeInit(init), toolCount: tools.length });
   } finally {
     await callback.close().catch(() => {});
   }
 }
+
 
 const cmd = process.argv[2];
 try {
