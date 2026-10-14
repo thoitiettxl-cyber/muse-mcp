@@ -28,7 +28,9 @@ With a static secret (never commit the value):
 }
 ```
 
-`options` maps onto `StreamableHttpTransportOptions`:
+`options` passes a subset of `StreamableHttpTransportOptions` through — the
+reference CLI forwards `openGetStream` and `maxMessageBytes` (e.g. set
+`openGetStream: false` for stateless servers, see quirks below):
 
 ```json
 {

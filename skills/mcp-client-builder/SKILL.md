@@ -14,9 +14,9 @@ following the proven muse-mcp pattern. Reference implementation:
 1. Scaffold: `npm init -y && npm i -E @earendil-works/pi-mcp@<pinned>` (Node >= 22, ESM-only `import`).
 2. Write the registry (`servers.json`, schema in [references/registry-schema.md](references/registry-schema.md)).
    Read from `~/.config/mcp/servers.json` first, fall back to the bundled file.
-3. Implement commands on `McpClient`: `smoke` (connect -> ping -> listTools),
+3. Implement commands on `McpClient`: `list-servers`, `smoke` (connect -> ping -> listTools),
    `list-tools`, `call-tool` (`--llm` via `toLlmContent`), `list-resources` /
-   `read-resource`, `auth` (OAuth, see [references/oauth-flow.md](references/oauth-flow.md)).
+   `list-resource-templates` / `read-resource`, `auth` (OAuth, see [references/oauth-flow.md](references/oauth-flow.md)).
 4. Add `${VAR}` expansion for url/headers/command/args/env; hard error on a missing
    variable. Ship a wrapper that applies the `export` lines of `~/.bashrc` so
    non-interactive shells get the keys without manual sourcing.
