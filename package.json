@@ -1,0 +1,16 @@
+{
+  "name": "muse-mcp",
+  "version": "1.0.0",
+  "description": "MCP client CLI built on @earendil-works/pi-mcp — registry, OAuth, stdio, resources",
+  "license": "MIT",
+  "dependencies": {
+    "@earendil-works/pi-mcp": "1.2.0"
+  },
+  "bin": {
+    "mcp": "./bin/mcp.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thoitiettxl-cyber/muse-mcp.git"
+  }
+}

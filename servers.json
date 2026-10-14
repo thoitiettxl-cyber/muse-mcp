@@ -1,0 +1,66 @@
+{
+  "openai-docs": {
+    "description": "OpenAI developer documentation MCP server",
+    "transport": "streamable-http",
+    "url": "https://developers.openai.com/mcp"
+  },
+  "xai-docs": {
+    "_note": "xai-docs-mcp is stateless and never answers the server-to-client GET SSE stream; openGetStream must be false or connect() hangs",
+    "description": "xAI API documentation MCP server",
+    "options": {
+      "openGetStream": false
+    },
+    "transport": "streamable-http",
+    "url": "https://docs.x.ai/api/mcp"
+  },
+  "anthropic-docs": {
+    "description": "Anthropic Claude developer documentation MCP server",
+    "transport": "streamable-http",
+    "url": "https://platform.claude.com/docs/mcp"
+  },
+  "cloudflare": {
+    "description": "Cloudflare API MCP server (OAuth PKCE via mcp auth)",
+    "transport": "streamable-http",
+    "url": "https://mcp.cloudflare.com/mcp",
+    "oauth": {
+      "clientName": "muse-mcp"
+    }
+  },
+  "context7": {
+    "description": "Context7 docs MCP server (API key via env)",
+    "headers": {
+      "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}"
+    },
+    "transport": "streamable-http",
+    "url": "https://mcp.context7.com/mcp"
+  },
+  "exa": {
+    "description": "Exa search MCP server (API key via env)",
+    "headers": {
+      "x-api-key": "${EXA_API_KEY}"
+    },
+    "transport": "streamable-http",
+    "url": "https://mcp.exa.ai/mcp"
+  },
+  "ksht": {
+    "description": "KSHT MCP server (API key via env)",
+    "headers": {
+      "KSHT_API_KEY": "${KSHT_API_KEY}"
+    },
+    "transport": "streamable-http",
+    "url": "https://ksht-mcp.ngthanhhuy951.workers.dev/mcp"
+  },
+  "firecrawl": {
+    "description": "Firecrawl MCP server (API key via env)",
+    "headers": {
+      "Authorization": "Bearer ${FIRECRAWL_API_KEY}"
+    },
+    "transport": "streamable-http",
+    "url": "https://mcp.firecrawl.dev/v2/mcp"
+  },
+  "inspo": {
+    "description": "Inspo MCP server",
+    "transport": "streamable-http",
+    "url": "https://inspomcp.dev/api/mcp"
+  }
+}
