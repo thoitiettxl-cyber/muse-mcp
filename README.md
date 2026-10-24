@@ -81,10 +81,8 @@ and verifies the grant with a `tools/list` call.
 | `openai-docs` | none | OpenAI developer docs |
 | `xai-docs` | none | xAI docs — stateless server, needs `"options": {"openGetStream": false}` |
 | `anthropic-docs` | none | Anthropic Claude docs |
-| `cloudflare` | OAuth (`mcp auth`) | Cloudflare API MCP server |
 | `context7` | `${CONTEXT7_API_KEY}` | Context7 docs |
 | `exa` | `${EXA_API_KEY}` | Exa search |
-| `ksht` | `${KSHT_API_KEY}` | Shop management (giaban) |
 | `firecrawl` | `${FIRECRAWL_API_KEY}` | Firecrawl scraping/crawling |
 | `inspo` | none | Design inspiration/screens |
 
