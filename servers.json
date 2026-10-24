@@ -18,14 +18,6 @@
     "transport": "streamable-http",
     "url": "https://platform.claude.com/docs/mcp"
   },
-  "cloudflare": {
-    "description": "Cloudflare API MCP server (OAuth PKCE via mcp auth)",
-    "transport": "streamable-http",
-    "url": "https://mcp.cloudflare.com/mcp",
-    "oauth": {
-      "clientName": "muse-mcp"
-    }
-  },
   "context7": {
     "description": "Context7 docs MCP server (API key via env)",
     "headers": {
@@ -41,14 +33,6 @@
     },
     "transport": "streamable-http",
     "url": "https://mcp.exa.ai/mcp"
-  },
-  "ksht": {
-    "description": "KSHT MCP server (API key via env)",
-    "headers": {
-      "KSHT_API_KEY": "${KSHT_API_KEY}"
-    },
-    "transport": "streamable-http",
-    "url": "https://ksht-mcp.ngthanhhuy951.workers.dev/mcp"
   },
   "firecrawl": {
     "description": "Firecrawl MCP server (API key via env)",

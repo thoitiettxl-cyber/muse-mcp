@@ -46,9 +46,9 @@ reference CLI forwards `openGetStream` and `maxMessageBytes` (e.g. set
 
 ```json
 {
-  "cloudflare": {
+  "my-oauth-server": {
     "transport": "streamable-http",
-    "url": "https://mcp.cloudflare.com/mcp",
+    "url": "https://example.com/mcp",
     "oauth": { "clientName": "muse-mcp", "scope": "read write", "callbackPort": 8931 }
   }
 }
